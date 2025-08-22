@@ -1,31 +1,67 @@
 import os
 import sys
-import time
-flag=0x00
-for x in range(1,4):
-    if os.system("python3 -m pip install --upgrade pip") == 0:
-        flag=flag | 0x01
-        break
-for x in range(1,4):
-    if os.system("pip3 install PyQt5==5.15.2") == 0:
-        flag=flag | 0x02
-        break
-for x in range(1,4):
-    if os.system("pip3 install Pillow") == 0:
-        flag=flag | 0x04
-        break
-for x in range(1,4):
-    if os.system("pip3 install opencv-python-headless") == 0:
-        flag=flag | 0x08
-        break
-for x in range(1,4):
-    if os.system("pip3 install numpy") == 0:
-        flag=flag | 0x10
-        break
-if flag==0x1f:
-        os.system("pip3 list")
-        print("\nAll libraries installed successfully")
-else:
-        print ("\nSome libraries have not been installed yet. Please run 'python3 setup_macos.py' again")
+import subprocess
+import platform
+
+def run_command(command, description):
+    print(f"\nInstalling {description}...")
+    try:
+        result = subprocess.run(
+            command,
+            shell=True,
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True
+        )
+        print(f"Successfully installed {description}")
+        return True
+    except subprocess.CalledProcessError as e:
+        print(f"Error installing {description}:")
+        print(f"Exit code: {e.returncode}")
+        print(f"Output: {e.stdout}")
+        print(f"Error: {e.stderr}")
+        return False
+
+def main():
+    print("Starting Freenove Tank Robot Kit setup...")
+    print(f"Python version: {platform.python_version()}")
+    print(f"System: {platform.system()} {platform.release()}")
+    
+    # Update pip first
+    if not run_command("python3 -m pip install --upgrade pip", "pip"):
+        print("Failed to update pip. Please check your internet connection and try again.")
+        return
+    
+    # Install dependencies in the correct order
+    dependencies = [
+        ("numpy", "numpy"),
+        ("Pillow", "Pillow"),
+        ("opencv-python-headless", "OpenCV"),
+        # Try PyQt5 5.15.10 which is compatible with Python 3.12
+        ("PyQt5==5.15.10", "PyQt5"),
+    ]
+    
+    all_installed = True
+    for pkg, name in dependencies:
+        if not run_command(f"pip3 install {pkg}", name):
+            print(f"Failed to install {name}. Please check the error message above.")
+            all_installed = False
+    
+    if all_installed:
+        print("\nAll dependencies installed successfully!")
+        print("You can now run the Freenove Tank Robot software.")
+        # List installed packages for verification
+        os.system("pip3 list | grep -E 'numpy|Pillow|opencv-python|PyQt5'")
+    else:
+        print("\nSome dependencies failed to install. Please check the error messages above.")
+        print("You may need to install some system dependencies first.")
+        if platform.system() == "Darwin":  # macOS
+            print("\nOn macOS, you might need to install Qt5 first. Try running:")
+            print("brew install qt@5")
+            print("export PATH=\"/usr/local/opt/qt@5/bin:$PATH\"")
+
+if __name__ == "__main__":
+    main()
 
 
