@@ -6,7 +6,6 @@ import socket
 import os
 import io
 import time
-import imghdr
 import sys
 from threading import Timer
 from threading import Thread
@@ -24,6 +23,7 @@ from PyQt5 import QtCore, QtGui, QtWidgets
 from PyQt5.QtCore import *
 from PyQt5.QtWidgets import *
 from PyQt5.QtGui import *
+from xbox_controller import XboxController
 
 class mywindow(QMainWindow,Ui_Client):
     def __init__(self):
@@ -44,6 +44,23 @@ class mywindow(QMainWindow,Ui_Client):
         self.timer.timeout.connect(self.time)
         self.TCP=VideoStreaming()
         self.commandFlag = 1
+        
+        # Print controller connection instructions
+        print("\n=== Controller Input Debug ===")
+        print("Controller inputs will be displayed here as you use them.")
+        print("No robot connection is needed to see the inputs.\n")
+        
+        # Initialize Xbox Controller
+        try:
+            self.xbox_controller = XboxController(self)
+            # Connect movement changed signal
+            if hasattr(self.xbox_controller, 'movement_changed'):
+                self.xbox_controller.movement_changed.connect(self._on_controller_movement)
+            self.xbox_controller.start()
+            print("Xbox Controller initialized successfully.")
+        except Exception as e:
+            print(f"Failed to initialize Xbox Controller: {e}")
+            self.xbox_controller = None
         self.W_flag = 0
         self.Pinch_Flag = 0
         self.Drop_Flag = 0
@@ -328,6 +345,23 @@ class mywindow(QMainWindow,Ui_Client):
         self.m_drag = False
 
     def keyPressEvent(self, event):
+        # Print controller button presses
+        if event.key() in [Qt.Key_W, Qt.Key_A, Qt.Key_S, Qt.Key_D, Qt.Key_Q, Qt.Key_L, Qt.Key_O, Qt.Key_P, Qt.Key_V, Qt.Key_Home, Qt.Key_C]:
+            key_name = {
+                Qt.Key_W: 'W (Forward)',
+                Qt.Key_A: 'A (Left)',
+                Qt.Key_S: 'S (Backward)',
+                Qt.Key_D: 'D (Right)',
+                Qt.Key_Q: 'Q (Cycle Mode)',
+                Qt.Key_L: 'L (LED Mode)',
+                Qt.Key_O: 'O (Pinch Object)',
+                Qt.Key_P: 'P (Drop Object)',
+                Qt.Key_V: 'V (Toggle Video)',
+                Qt.Key_Home: 'Home (Reset Camera)',
+                Qt.Key_C: 'C (Connect)'.format('Disconnect' if hasattr(self, 'TCP') and hasattr(self.TCP, 'client_socket') and self.TCP.client_socket else 'Connect')
+            }.get(event.key(), f'Key {event.key()}')
+            print(f"[Controller] Button Pressed: {key_name}")
+
         if(event.key() == Qt.Key_Up):
             self.on_btn_Up()
         elif(event.key() == Qt.Key_Left):
@@ -379,20 +413,24 @@ class mywindow(QMainWindow,Ui_Client):
         if event.isAutoRepeat():
             pass
         else :
-            if event.key() == Qt.Key_W:
+            if event.key() == Qt.Key_W or (hasattr(self, 'xbox_controller') and self.xbox_controller and self.xbox_controller.is_moving_forward()):
                 self.on_btn_ForWard()
                 self.Key_W=True
-            elif event.key() == Qt.Key_S:
+            elif event.key() == Qt.Key_S or (hasattr(self, 'xbox_controller') and self.xbox_controller and self.xbox_controller.is_moving_backward()):
                 self.on_btn_BackWard()
                 self.Key_S=True
-            elif event.key() == Qt.Key_A:
+            elif event.key() == Qt.Key_A or (hasattr(self, 'xbox_controller') and self.xbox_controller and self.xbox_controller.is_turning_left()):
                 self.on_btn_Turn_Left()
                 self.Key_A=True
-            elif event.key() == Qt.Key_D:
+            elif event.key() == Qt.Key_D or (hasattr(self, 'xbox_controller') and self.xbox_controller and self.xbox_controller.is_turning_right()):
                 self.on_btn_Turn_Right()
                 self.Key_D=True
 
     def closeEvent(self, event):
+        # Clean up Xbox controller
+        if hasattr(self, 'xbox_controller') and self.xbox_controller:
+            self.xbox_controller.stop()
+            
         self.timer.stop()
         try:
             stop_thread(self.recv)
@@ -428,25 +466,52 @@ class mywindow(QMainWindow,Ui_Client):
                 self.on_btn_Stop()
                 self.Key_D=False
 
+    def _on_controller_movement(self, forward, backward, left, right):
+        """Handle controller movement state changes."""
+        if forward:
+            print("[Controller] Movement: Forward")
+            self.on_btn_ForWard()
+        elif backward:
+            print("[Controller] Movement: Backward")
+            self.on_btn_BackWard()
+        elif left:
+            print("[Controller] Movement: Turn Left")
+            self.on_btn_Turn_Left()
+        elif right:
+            print("[Controller] Movement: Turn Right")
+            self.on_btn_Turn_Right()
+        else:
+            print("[Controller] Movement: Stopped")
+            self.on_btn_Stop()
+
     def on_btn_ForWard(self):
+        if not hasattr(self, 'Key_W') or not self.Key_W:  # Prevent duplicate prints
+            print("[Action] Moving Forward")
         ForWard=self.intervalChar+str(2000)+self.intervalChar+str(2000)+self.endChar
         self.TCP.sendData(cmd.CMD_MOTOR+ForWard)
 
     def on_btn_Turn_Left(self):
+        if not hasattr(self, 'Key_A') or not self.Key_A:  # Prevent duplicate prints
+            print("[Action] Turning Left")
         Turn_Left=self.intervalChar+str(-2000)+self.intervalChar+str(2000)+self.endChar
-        self.TCP.sendData(cmd.CMD_MOTOR+ Turn_Left)
+        self.TCP.sendData(cmd.CMD_MOTOR+Turn_Left)
 
     def on_btn_BackWard(self):
+        if not hasattr(self, 'Key_S') or not self.Key_S:  # Prevent duplicate prints
+            print("[Action] Moving Backward")
         BackWard=self.intervalChar+str(-2000)+self.intervalChar+str(-2000)+self.endChar
         self.TCP.sendData(cmd.CMD_MOTOR+BackWard)
 
     def on_btn_Turn_Right(self):
+        if not hasattr(self, 'Key_D') or not self.Key_D:  # Prevent duplicate prints
+            print("[Action] Turning Right")
         Turn_Right=self.intervalChar+str(2000)+self.intervalChar+str(-2000)+self.endChar
         self.TCP.sendData(cmd.CMD_MOTOR+Turn_Right)
 
     def on_btn_Stop(self):
         Stop=self.intervalChar+str(0)+self.intervalChar+str(0)+self.endChar
         self.TCP.sendData(cmd.CMD_MOTOR+Stop)
+        # Note: We don't print stop here to avoid spam, as it's called frequently
 
     def on_btn_Up(self):
         self.servo2=self.servo2+5
@@ -718,10 +783,12 @@ class mywindow(QMainWindow,Ui_Client):
     def recvmassage(self):
             self.TCP.socket1_connect(self.h)
             restCmd=""
+            debug_mode = False  # Set to True to enable debug output
             while True:
                 Alldata=restCmd+str(self.TCP.recvData())
                 restCmd=""
-                print (Alldata)
+                if debug_mode:  # Only print if debug mode is enabled
+                    print(Alldata)
                 if Alldata=="":
                     break
                 else:
