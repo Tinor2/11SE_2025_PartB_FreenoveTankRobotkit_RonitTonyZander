@@ -1,0 +1,62 @@
+classDiagram
+    class Component{
+        <<abstract>>
+        +name:str
+        +instance:int
+        +IO:bool
+    }
+    class Input{
+        <<abstract>>
+        IO = True
+    }
+    class Output{
+        <<abstract>>
+        IO = False
+    }
+    class Ultrasonic{
+        name = "ultrasonic"
+    }
+    class Color_Sensor{
+        name = "color"
+    }
+    class Camera{
+        name = "camera"
+    }
+    class Motor{
+        name = "motor"
+    }
+    class Servo{
+        name = "servo"
+    }
+    class LED_Board{
+        name = "led"
+    }
+    class Arm{
+    }
+    class Motor_System{
+    }
+    class Tank{
+    }
+    Component <-- Input 
+    Component <-- Output 
+    Input <-- Ultrasonic
+    Input <-- Color_Sensor
+    Input <-- Camera
+    Output <-- Motor
+    Output <-- Servo
+    Output <--  LED_Board
+
+    Servo "2"*--"1" Arm
+    Motor "2"*--"1" Motor_System
+
+    Motor_System "1"*--"1" Tank
+    Arm "1"*--"1" Tank
+    Camera "1"*--"1" Tank
+    Color_Sensor "1"*--"1" Tank
+    Ultrasonic "1"*--"1" Tank
+    LED_Board "1"*--"1" Tank
+
+
+
+    
+    
