@@ -11,7 +11,7 @@ import threading                                       # Import the threading mo
 import multiprocessing                                 # Import the multiprocessing module for creating processes
 from message import MessageParser                      # Import the MessageParser class from the message module
 from command import Command                             # Import the Command class from the command module
-from led import Led                                    # Import the Led class from the led module
+from led_board import LED_Board as Led                 # Import the LED_Board class from the led_board module
 from camera import Camera                              # Import the Camera class from the camera module
 from car import Car                                    # Import the Car class from the car module
 

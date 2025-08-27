@@ -1,245 +1,229 @@
-# Import necessary modules for ultrasonic sensor, motor control, servo control, and infrared sensor
+"""
+Tank module implementing a component-based architecture for the robot.
+This module provides the main Tank class that composes various hardware components.
+"""
+from typing import Optional, Dict, Any
+import time
+from component import Component
 from ultrasonic import Ultrasonic
-from motor import tankMotor
+from motor import Motor_System
 from servo import Servo
 from infrared import Infrared
-import time
+from arm import Arm
+from led_board import LED_Board
 
-# Define the Car class to manage all components and functionalities
-class Car:
-    def __init__(self):
-        # Initialize all components to None
-        self.servo = None
-        self.sonic = None
-        self.motor = None
-        self.infrared = None
-        # Call the start method to initialize components
-        self.start()
-
-    def start(self):   
-        # Set initial clamp mode and infrared run stop flag
+class Tank(Component):
+    """
+    Main tank class that composes various hardware components.
+    Implements the Component interface for unified control.
+    """
+    
+    def __init__(self, 
+                 config: Optional[Dict[str, Any]] = None,
+                 name: str = "tank"):
+        """
+        Initialize the Tank with the specified configuration.
+        
+        Args:
+            config: Configuration dictionary for hardware components.
+                   If None, uses default configuration.
+            name: Name of the tank (default: "tank")
+        """
+        super().__init__(name, 0)  # Instance is 0 as this is the main component
+        
+        # Default configuration
+        self.config = config or {
+            'ultrasonic': {'echo_pin': 17, 'trigger_pin': 27},
+            'motor_system': {
+                'left_forward_pin': 24,
+                'left_backward_pin': 23,
+                'right_forward_pin': 5,
+                'right_backward_pin': 6
+            },
+            'servo': {},
+            'infrared': {},
+            'arm': {
+                'servo_pins': {
+                    'base': (0, 90),    # Channel 0, default 90 degrees
+                    'shoulder': (1, 90), # Channel 1, default 90 degrees
+                    'elbow': (2, 90)     # Channel 2, default 90 degrees
+                }
+            },
+            'led_board': {
+                'led_pins': [17, 18, 22, 23]  # Example LED pins
+            }
+        }
+        
+        # Initialize components
+        self.components: Dict[str, Component] = {}
+        self._initialize_components()
+        
+        # State variables
         self.clamp_mode = 0
         self.infrared_run_stop = False
-        # Initialize servo if not already initialized
-        if self.servo is None:
-            self.servo = Servo()
-        # Initialize ultrasonic sensor if not already initialized
-        if self.sonic is None:
-            self.sonic = Ultrasonic()
-        # Initialize motor if not already initialized
-        if self.motor is None:
-            self.motor = tankMotor()
-        # Initialize infrared sensor if not already initialized
-        if self.infrared is None:
-            self.infrared = Infrared()
+
+    def _initialize_components(self):
+        """Initialize all hardware components based on configuration."""
+        # Initialize motor system
+        motor_config = self.config.get('motor_system', {})
+        self.components['motor_system'] = Motor_System(**motor_config)
+        
+        # Initialize ultrasonic sensor
+        sonic_config = self.config.get('ultrasonic', {})
+        self.components['ultrasonic'] = Ultrasonic(**sonic_config)
+        
+        # Initialize servo
+        servo_config = self.config.get('servo', {})
+        self.components['servo'] = Servo(**servo_config)
+        
+        # Initialize infrared sensor
+        ir_config = self.config.get('infrared', {})
+        self.components['infrared'] = Infrared(**ir_config)
+        
+        # Initialize arm
+        arm_config = self.config.get('arm', {})
+        self.components['arm'] = Arm(**arm_config)
+        
+        # Initialize LED board
+        led_config = self.config.get('led_board', {})
+        self.components['led_board'] = LED_Board(**led_config)
+        
+        # Create direct references for backward compatibility
+        self.motor = self.components['motor_system']
+        self.sonic = self.components['ultrasonic']
+        self.servo = self.components['servo']
+        self.infrared = self.components['infrared']
+        self.leds = self.components['led_board']
+        self.arm = self.components['arm']
+
+    def start(self):
+        """Start all components."""
+        for component in self.components.values():
+            component.start()
 
     def close(self):
-        # Reset clamp mode
-        self.clamp_mode = 0
-        # Stop servo
-        self.servo.setServoStop()
-        # Close ultrasonic sensor
-        self.sonic.close()
-        # Close motor
-        self.motor.close()
-        # Close infrared sensor
-        self.infrared.close()
-        # Set all components to None
-        self.servo = None
-        self.sonic = None
-        self.motor = None
-        self.infrared = None
+        """Close all components and release resources."""
+        self._cleanup_components()
+        super().close()
 
-    def mode_ultrasonic(self):
-        # Get distance from ultrasonic sensor
-        distance = self.sonic.get_distance()
-        # print("Ultrasonic distance is " + str(distance) + "CM")
+    def _cleanup_components(self):
+        """Safely close all components."""
+        for component in reversed(list(self.components.values())):
+            try:
+                if hasattr(component, 'close'):
+                    component.close()
+            except Exception as e:
+                print(f"Error closing component {component}: {e}")
 
-        # Check if distance is valid
-        if distance != 0:
-            # If distance is less than 45 cm, move backward and turn left
-            if distance < 45:
-                self.motor.setMotorModel(-1500, -1500)
-                time.sleep(0.4)
-                self.motor.setMotorModel(-1500, 1500)
-                time.sleep(0.2)
-            # Otherwise, move forward
-            else:
-                self.motor.setMotorModel(1500, 1500)
-        # Sleep for a short duration
-        time.sleep(0.2)
-    
-    def mode_infrared(self):
-        # Get distance from ultrasonic sensor
-        distance = self.sonic.get_distance()
-        # Read all infrared sensors
-        infrared_value = self.infrared.read_all_infrared()
-        # print("distance:", distance, "infrared:", infrared_value)
+    def setMotorModel(self, left_speed: int, right_speed: int):
+        """
+        Set motor speeds using the legacy interface.
+        
+        Args:
+            left_speed: Speed for left motor (-4095 to 4095)
+            right_speed: Speed for right motor (-4095 to 4095)
+        """
+        if 'motor_system' in self.components:
+            self.motor.setMotorModel(left_speed, right_speed)
 
-        # Control motor based on infrared sensor values
-        if infrared_value == 2:
-            self.motor.setMotorModel(1200, 1200)    # Move forward
-        elif infrared_value == 4:
-            self.motor.setMotorModel(-1500, 2500)   # Turn left
-        elif infrared_value == 6:
-            self.motor.setMotorModel(-2000, 4000)   # Turn left more sharply
-        elif infrared_value == 1:
-            self.motor.setMotorModel(2500, -1500)   # Turn right
-        elif infrared_value == 3:
-            self.motor.setMotorModel(4000, -2000)   # Turn right more sharply
-        elif infrared_value == 7:
-            self.motor.setMotorModel(0, 0)          # Stop
+    def get_distance(self):
+        """
+        Get distance from ultrasonic sensor.
+        
+        Returns:
+            Distance in centimeters
+        """
+        if 'ultrasonic' in self.components:
+            return self.sonic.get_distance()
+        return 0.0
 
-        # If distance is between 5.0 and 12.0 cm, perform clamp operations
-        if distance > 5.0 and distance <= 12.0:
-            self.motor.setMotorModel(0, 0)          # Stop motor
-            self.set_mode_clamp(1)                  # Set clamp mode to 1 (up)
-            while self.get_mode_clamp() == 1 and self.infrared_run_stop == False:
-                self.mode_clamp()                   # Perform clamp up operation
-            if self.infrared_run_stop == True:
-                self.motor.setMotorModel(0, 0)      # Stop motor if infrared run stop is True
-                return
-            self.motor.setMotorModel(-1500, 1500)   # Turn left
-            time.sleep(1.5)
-            self.motor.setMotorModel(0, 0)          # Stop motor
-            self.set_mode_clamp(2)                  # Set clamp mode to 2 (down)
-            while self.get_mode_clamp() == 2 and self.infrared_run_stop == False:
-                self.mode_clamp()                   # Perform clamp down operation
-            if self.infrared_run_stop == True:
-                self.motor.setMotorModel(0, 0)      # Stop motor if infrared run stop is True
-                return 
-            self.motor.setMotorModel(1500, -1500)   # Turn right
-            time.sleep(1.4)
+    def set_servo_angle(self, channel: str, angle: float):
+        """
+        Set servo angle.
+        
+        Args:
+            channel: Servo channel
+            angle: Angle in degrees (0-180)
+        """
+        if 'servo' in self.components:
+            self.servo.set_angle(channel, angle)
 
-    def mode_clamp_up(self):
-        # Perform clamp up operation if clamp mode is 1
-        if self.clamp_mode == 1:
-            # Get distance from ultrasonic sensor
-            distance = self.sonic.get_distance()
-            # Print the distance
-            print("car_mode_clamp_up distance:", distance)
-            # Control motor based on distance
-            if distance <= 5:
-                self.motor.setMotorModel(-1200, -1200)  # Move backward slowly
-            elif distance > 5 and distance < 7.5:
-                self.motor.setMotorModel(-800, -800)    # Move backward faster
-            elif distance >= 7.5 and distance <= 7.7:
-                self.motor.setMotorModel(0, 0)          # Stop motor
-                # Adjust servos to clamp up
-                for i in range(140, 90, -1):
-                    self.servo.setServoAngle('1', i)
-                    time.sleep(0.01)
-                for i in range(90, 130, 1):
-                    self.servo.setServoAngle('0', i)
-                    time.sleep(0.01)  
-                for i in range(90, 140, 1):
-                    self.servo.setServoAngle('1', i)
-                    time.sleep(0.01)
-                self.clamp_mode = 0                     # Reset clamp mode
-            elif distance > 7.7 and distance < 11:
-                self.motor.setMotorModel(800, 800)      # Move forward slowly
-            elif distance >= 11:
-                self.motor.setMotorModel(1200, 1200)    # Move forward quickly
-            # Sleep for a short duration
-            time.sleep(0.05) 
+    def set_arm_position(self, position: Dict[str, float]):
+        """
+        Move arm to specified position.
+        
+        Args:
+            position: Dictionary mapping joint names to angles
+        """
+        if 'arm' in self.components:
+            self.arm.set_position(position)
 
-    def mode_clamp_down(self):
-        # Perform clamp down operation if clamp mode is 2
-        if self.clamp_mode == 2:
-            self.motor.setMotorModel(0, 0)              # Stop motor
-            # Adjust servos to clamp down
-            for i in range(140, 90, -1):
-                self.servo.setServoAngle('1', i)
-                time.sleep(0.01)
-            for i in range(130, 90, -1):
-                self.servo.setServoAngle('0', i)
-                time.sleep(0.01)
-            for i in range(90, 140, 1):
-                self.servo.setServoAngle('1', i)
-                time.sleep(0.01)
-            self.clamp_mode = 0                         # Reset clamp mode
+    def set_leds(self, states: Dict[int, bool]):
+        """
+        Set LED states.
+        
+        Args:
+            states: Dictionary mapping LED indices to states (True/False)
+        """
+        if 'led_board' in self.components:
+            for index, state in states.items():
+                self.leds.set_led(index, state)
 
-    def mode_clamp_stop(self):
-        # Stop motor
-        self.motor.setMotorModel(0, 0)
+# For backward compatibility
+Car = Tank
 
-    def set_mode_clamp(self, mode=0):  
-        # Set clamp mode
-        self.clamp_mode = mode 
-
-    def get_mode_clamp(self):
-        # Get current clamp mode
-        return self.clamp_mode
-
-    def mode_clamp(self, mode=None):
-        # Set clamp mode if provided
-        if mode is not None:
-            self.clamp_mode = mode
-        # Perform clamp operation based on current mode
-        if self.clamp_mode == 1:
-            self.mode_clamp_up()
-        elif self.clamp_mode == 2:
-            self.mode_clamp_down()
-        elif self.clamp_mode == 0:
-            self.mode_clamp_stop()
-
-# Test function for clamp functionality
-def test_car_clamp():
-    car = Car()  # Create a Car object
+def test_tank():
+    """Test function for the Tank class."""
+    tank = Tank()
     try:
-        while True:
-            print("clamp up...")
-            car.clamp_mode = 1  # Set clamp mode to 1 (up)
-            while car.clamp_mode == 1:
-                car.mode_clamp()  # Perform clamp up operation
-            time.sleep(1)
+        tank.start()
+        
+        # Test motors
+        print("Testing motors...")
+        tank.setMotorModel(1000, 1000)  # Forward
+        time.sleep(1)
+        tank.setMotorModel(-1000, -1000)  # Backward
+        time.sleep(1)
+        tank.setMotorModel(0, 0)  # Stop
+        
+        # Test ultrasonic
+        print("Testing ultrasonic...")
+        distance = tank.get_distance()
+        print(f"Distance: {distance:.1f} cm")
+        
+        # Test LEDs
+        print("Testing LEDs...")
+        tank.set_leds({0: True, 1: False, 2: True, 3: False})
+        time.sleep(1)
+        tank.set_leds({0: False, 1: True, 2: False, 3: True})
+        time.sleep(1)
+        tank.set_leds({i: False for i in range(4)})
+        
+    finally:
+        tank.close()
 
-            print("clamp down...")
-            car.clamp_mode = 2  # Set clamp mode to 2 (down)
-            while car.clamp_mode == 2:
-                car.mode_clamp()  # Perform clamp down operation
-            time.sleep(1)
-
-            print("clamp stop...")
-            car.mode_clamp(0)  # Stop clamp operation
-            time.sleep(1)
-
-    except KeyboardInterrupt:
-        car.close()  # Close the car object
-        print("\nEnd of program")
-
-# Test function for infrared sensor functionality
-def test_car_infrared():
-    car = Car()  # Create a Car object
+def test_infrared():
+    """Test function for the infrared sensor."""
+    tank = Tank()
     try:
-        while True:
-            car.mode_infrared()  # Perform infrared sensor operation
-    except KeyboardInterrupt:
-        car.close()  # Close the car object
-        print("\nEnd of program")
+        tank.start()
+        print("Testing infrared sensor...")
+        for _ in range(5):
+            print(f"IR Left: {tank.infrared.left_value}, Right: {tank.infrared.right_value}")
+            time.sleep(1)
+    finally:
+        tank.close()
 
-# Test function for ultrasonic sensor functionality
-def test_car_sonic():
-    car = Car()  # Create a Car object
-    try:
-        while True:
-            car.mode_ultrasonic()  # Perform ultrasonic sensor operation
-    except KeyboardInterrupt:
-        car.close()  # Close the car object
-        print("\nEnd of program")
-
-# Main entry point of the program
 if __name__ == '__main__':
-    # Uncomment the following lines to test different functionalities
-    # test_car_clamp()  # Test clamp functionality
-    # test_car_infrared()  # Test infrared sensor functionality
-    # test_car_sonic()  # Test ultrasonic sensor functionality
-    import sys  # Import the sys module for command-line arguments
-    if len(sys.argv) < 2:
-        print("Parameter error: Please assign the device")       # Print an error message if no device is specified
-        exit()                                                   # Exit the program
-    if sys.argv[1] == 'Sonic' or sys.argv[1] == 'sonnic':
-        test_car_sonic()                                        # Run the ultrasonic test
-    elif sys.argv[1] == 'Infrared' or sys.argv[1] == 'infrared':
-        test_car_infrared()                                          # Run the infrared test
- 
+    import argparse
+    
+    parser = argparse.ArgumentParser(description='Test Tank Robot Components')
+    parser.add_argument('--test', type=str, choices=['tank', 'infrared'], 
+                       default='tank', help='Test to run')
+    
+    args = parser.parse_args()
+    
+    if args.test == 'tank':
+        test_tank()
+    elif args.test == 'infrared':
+        test_infrared()
