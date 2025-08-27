@@ -17,15 +17,24 @@ class StreamingOutput(io.BufferedIOBase):
             self.condition.notify_all()  # Notify all waiting threads that new data is available
 
 class Camera:
-    def __init__(self, preview_size=(640, 480), hflip=False, vflip=False, stream_size=(400, 300)):
+    def __init__(self, preview_size=(640, 480), hflip=False, vflip=True, stream_size=(400, 300)):
         self.camera = Picamera2()              # Initialize the Picamera2 object
+        # Set vflip=True by default to fix upside-down camera
         self.transform = Transform(hflip=1 if hflip else 0, vflip=1 if vflip else 0)  # Set the transformation for flipping the image
-        preview_config = self.camera.create_preview_configuration(main={"size": preview_size}, transform=self.transform)  # Create the preview configuration
+        preview_config = self.camera.create_preview_configuration(
+            main={"size": preview_size},
+            transform=self.transform,
+            buffer_count=2  # Add buffer count for better performance
+        )
         self.camera.configure(preview_config)  # Configure the camera with the preview settings
         
-        # Configure video stream
+        # Configure video stream with the same transform settings
         self.stream_size = stream_size             # Set the size of the video stream
-        self.stream_config = self.camera.create_video_configuration(main={"size": stream_size}, transform=self.transform)  # Create the video configuration
+        self.stream_config = self.camera.create_video_configuration(
+            main={"size": stream_size},
+            transform=self.transform,  # Apply the same transform to video stream
+            buffer_count=2  # Add buffer count for better performance
+        )
         self.streaming_output = StreamingOutput()  # Initialize the streaming output object
         self.streaming = False                     # Initialize the streaming flag
 
