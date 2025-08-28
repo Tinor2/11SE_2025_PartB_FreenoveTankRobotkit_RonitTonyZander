@@ -24,12 +24,19 @@ class XboxController(QObject):
         # Controller state
         self.left_x = 0
         self.left_y = 0
+        self.right_x = 0
+        self.right_y = 0
         
         # Movement states (duplicate states removed)
         self.moving_forward = False
         self.moving_backward = False
         self.turning_left = False
         self.turning_right = False
+        
+        # Servo control
+        self.last_servo1 = 90  # Default center position for servo1 (horizontal)
+        self.last_servo2 = 140  # Default center position for servo2 (vertical)
+        self.last_servo_update = 0  # For rate limiting
         
         # Button states (simplified to only track necessary buttons)
         self.buttons = {
@@ -143,6 +150,11 @@ class XboxController(QObject):
                     left_y = joystick.get_axis(1)  # Axis 1: left stick vertical
                     self._update_movement_states(left_x, left_y)
                     
+                    # Get right stick values for servo control
+                    right_x = joystick.get_axis(2)  # Axis 2: right stick horizontal
+                    right_y = joystick.get_axis(3)  # Axis 3: right stick vertical (inverted)
+                    self._update_servos(right_x, right_y)
+                    
                     time.sleep(0.01)  # Prevent high CPU usage
                     
                 except Exception as e:
@@ -156,13 +168,76 @@ class XboxController(QObject):
                 pygame.quit()
                 print("Controller disconnected")
     
+    def _map_joystick_to_servo(self, value, servo_min=90, servo_max=150):
+        """Map joystick value (-1 to 1) to servo angle (servo_min to servo_max)."""
+        # Scale from [-1, 1] to [servo_min, servo_max]
+        return int((value + 1) * (servo_max - servo_min) / 2 + servo_min)
+    
+    def _update_servos(self, right_x, right_y):
+        """Update servo positions based on right joystick position."""
+        # Apply deadzone
+        if abs(right_x) < self.deadzone:
+            right_x = 0
+        if abs(right_y) < self.deadzone:
+            right_y = 0
+        
+        # Store current values to detect changes
+        old_servo1 = self.last_servo1
+        old_servo2 = self.last_servo2
+        
+        # Update servo1 (horizontal) based on right stick X
+        if right_x != 0:
+            self.last_servo1 = max(90, min(150, self.last_servo1 + int(right_x * 5)))
+            
+        # Update servo2 (vertical) based on right stick Y (inverted)
+        if right_y != 0:
+            self.last_servo2 = max(90, min(150, self.last_servo2 - int(right_y * 5)))
+        
+        # Only update if there's a change
+        if self.last_servo1 != old_servo1 or self.last_servo2 != old_servo2:
+            print(f"[Servo] Moving to: H={self.last_servo1}°, V={self.last_servo2}°")
+            
+            # Update UI sliders
+            self.main_window.HSlider_Servo1.setValue(self.last_servo1)
+            self.main_window.VSlider_Servo2.setValue(self.last_servo2)
+            
+            # Send commands to the robot
+            try:
+                # Update horizontal servo (servo1)
+                self.main_window.TCP.sendData(
+                    cmd.CMD_SERVO + 
+                    self.main_window.intervalChar + '0' + 
+                    self.main_window.intervalChar + str(self.last_servo1) + 
+                    self.main_window.endChar
+                )
+                
+                # Update vertical servo (servo2)
+                self.main_window.TCP.sendData(
+                    cmd.CMD_SERVO + 
+                    self.main_window.intervalChar + '1' + 
+                    self.main_window.intervalChar + str(self.last_servo2) + 
+                    self.main_window.endChar
+                )
+            except Exception as e:
+                print(f"[Servo] Error sending servo command: {e}")
+    
     def _handle_axis_event(self, event):
         """Handle joystick axis movement events."""
-        # Only handle left stick (axes 0 and 1) since we don't use right stick
+        # Left stick (movement)
         if event.axis == 0:  # Left stick X
             self.left_x = event.value if abs(event.value) > self.deadzone else 0
         elif event.axis == 1:  # Left stick Y (inverted)
             self.left_y = -event.value if abs(event.value) > 0.2 else 0
+            
+        # Right stick (camera/servo control)
+        elif event.axis == 2:  # Right stick X
+            self.right_x = event.value if abs(event.value) > self.deadzone else 0
+        elif event.axis == 3:  # Right stick Y (inverted)
+            self.right_y = -event.value if abs(event.value) > self.deadzone else 0
+            
+        # Update servos if right stick is being used
+        if event.axis in [2, 3]:
+            self._update_servos(self.right_x, self.right_y)
     
     def _handle_button_press(self, button):
         """Handle button press events."""
@@ -230,6 +305,12 @@ def main():
                 print("Move the left stick to control movement")
                 print("Press buttons to see their actions")
                 print("Press CTRL+C to return to menu\n")
+                print("\n=== Controller Input Debug ===")
+                print("Controller inputs will be displayed here as you use them.")
+                print("Right Joystick Controls:")
+                print("  - Left/Right: Control horizontal servo (90-150°)")
+                print("  - Up/Down:    Control vertical servo (90-150°)")
+                print("\nNo robot connection is needed to see the inputs.\n")
                 # After returning from test, show menu again
                 print("\n" + "="*50)
                 print("Xbox Controller Utility")
