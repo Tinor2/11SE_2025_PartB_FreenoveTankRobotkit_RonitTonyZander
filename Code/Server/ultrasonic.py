@@ -1,18 +1,39 @@
 from gpiozero import DistanceSensor, PWMSoftwareFallback
 import warnings
+from component import Input
 
-class Ultrasonic:
-    def __init__(self):
-        # Initialize the Ultrasonic class and set up the distance sensor.
-        warnings.filterwarnings("ignore", category=PWMSoftwareFallback)  # Ignore PWM software fallback warnings
-        self.trigger_pin = 27  # Set the trigger pin number
-        self.echo_pin = 22     # Set the echo pin number
-        self.sensor = DistanceSensor(echo=self.echo_pin, trigger=self.trigger_pin, max_distance=3)  # Initialize the distance sensor
+class Ultrasonic(Input):
+    def __init__(self, instance: int = 0):
+        """
+        Initialize the Ultrasonic sensor component.
+        
+        Args:
+            instance: Instance number for multiple ultrasonic sensors
+        """
+        super().__init__("ultrasonic", instance)
+        warnings.filterwarnings("ignore", category=PWMSoftwareFallback)
+        self.trigger_pin = 27
+        self.echo_pin = 22
+        self.sensor = DistanceSensor(echo=self.echo_pin, trigger=self.trigger_pin, max_distance=3)
 
+    def start(self):
+        """Initialize the sensor. No special initialization needed for gpiozero."""
+        pass
+
+    def get_data(self):
+        """
+        Get the distance measurement from the ultrasonic sensor.
+        
+        Returns:
+            float: Distance in centimeters, rounded to one decimal place
+        """
+        distance_cm = self.sensor.distance * 100  # Convert meters to centimeters
+        return round(float(distance_cm), 1)
+        
+    # Alias for backward compatibility
     def get_distance(self):
-        # Get the distance measurement from the ultrasonic sensor in centimeters.
-        distance_cm = self.sensor.distance * 100  # Convert distance from meters to centimeters
-        return round(float(distance_cm), 1)       # Return the distance rounded to one decimal place
+        """Alias for get_data() for backward compatibility."""
+        return self.get_data()
 
     def close(self):
         # Close the distance sensor.

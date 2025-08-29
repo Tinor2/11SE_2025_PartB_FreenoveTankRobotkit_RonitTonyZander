@@ -1,0 +1,8 @@
+# Core requirements for Freenove Tank Robot on Raspberry Pi
+gpiozero>=1.6.2
+pigpio>=1.78
+numpy>=1.19.5
+opencv-python>=4.5.3.56
+PyQt5>=5.15.4
+RPi.GPIO>=0.7.0
+rpi_ws281x>=4.3.1

@@ -8,35 +8,39 @@ def test_Parameter():
         print(f"Raspberry PI version is {'less than 5' if pi_version == 1 else '5'}.")  # Print the Raspberry Pi version
 
 def test_Led():
-    from led import Led                        # Import the Led class from the led module
+    from led_board import LED_Board           # Import the LED_Board class from the led_board module
     import time                                # Import the time module for sleep functionality
     print('Program is starting ... ')          # Print a start message
-    led = Led()                                # Initialize the Led instance
+    
+    # Initialize LED board with 4 LEDs on GPIO pins 17, 18, 22, 23
+    leds = LED_Board(led_pins=[17, 18, 22, 23])
+    leds.start()
+    
     try:
         while True:
-            print("ledIndex test")             # Print a test message
-            led.ledIndex(0x01, 255, 0, 0)      # Set LED 1 to red
-            led.ledIndex(0x02, 0, 255, 0)      # Set LED 2 to green
-            led.ledIndex(0x04, 0, 0, 255)      # Set LED 3 to blue
-            led.ledIndex(0x08, 255, 255, 255)  # Set LED 4 to white
-            time.sleep(3)                      # Wait for 3 seconds
-
-            print("colorWipe test")            # Print a test message
-            led.colorWipe((255, 0, 0))         # Perform a red color wipe
-            led.colorWipe((0, 255, 0))         # Perform a green color wipe
-            led.colorWipe((0, 0, 255))         # Perform a blue color wipe
-            time.sleep(1)                      # Wait for 1 second
-
-            print("theaterChaseRainbow test")  # Print a test message
-            led.theaterChaseRainbow()          # Perform a theater chase rainbow effect
-            print("rainbow test")              # Print a test message
-            led.rainbow()                      # Perform a rainbow effect
-            print("rainbowCycle test")         # Print a test message
-            led.rainbowCycle()                 # Perform a rainbow cycle effect
-
-            led.colorWipe((0, 0, 0), 10)       # Turn off all LEDs
-    except KeyboardInterrupt:                  # Handle keyboard interrupt (Ctrl+C)
-        led.colorWipe((0, 0, 0), 10)           # Turn off all LEDs
+            print("Testing individual LEDs...")
+            # Test each LED individually
+            for i in range(4):
+                leds.set_led(i, True)          # Turn on current LED
+                time.sleep(0.5)                 # Wait 0.5 seconds
+                leds.set_led(i, False)         # Turn off current LED
+            
+            print("Testing all LEDs...")
+            # Test all LEDs on/off
+            leds.all_on()                      # Turn all LEDs on
+            time.sleep(1)                      # Wait 1 second
+            leds.all_off()                     # Turn all LEDs off
+            time.sleep(1)                      # Wait 1 second
+            
+            print("Testing LED toggle...")
+            # Toggle LEDs in sequence
+            for i in range(4):
+                leds.toggle_led(i)             # Toggle current LED
+                time.sleep(0.2)                 # Wait 0.2 seconds
+            
+    except KeyboardInterrupt:                   # Handle keyboard interrupt (Ctrl+C)
+        leds.all_off()                         # Turn off all LEDs
+        leds.close()                           # Clean up
         print("\nEnd of program")              # Print an end message
 
 def test_Motor():

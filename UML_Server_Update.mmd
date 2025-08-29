@@ -1,0 +1,134 @@
+classDiagram
+    class Component{
+        <<abstract>>
+        +name: str
+        +instance: int
+        +IO: bool
+        +start()*
+        +close()*
+    }
+    
+    class Input{
+        <<abstract>>
+        +IO = True
+        +get_data()*
+    }
+    
+    class Output{
+        <<abstract>>
+        IO = False
+        +set_value()*
+    }
+    
+    class Ultrasonic{
+        +name = "ultrasonic"
+        +trigger_pin: int = 27
+        +echo_pin: int = 22
+        +sensor: DistanceSensor
+        +get_distance() float
+        +close()
+    }
+    
+    class Infrared{
+        +name = "infrared"
+        +read_all_infrared() int
+        +close()
+    }
+    
+    class Camera{
+        +name = "camera"
+        +camera: Picamera2
+        +streaming: bool
+        +start_stream()
+        +stop_stream()
+        +get_frame() bytes
+        +save_video(filename: str, duration: int)
+        +close()
+    }
+    
+    class Motor{
+        +name = "motor"
+        +left_motor: Motor
+        +right_motor: Motor
+        +duty_range(duty1: int, duty2: int) tuple
+        +left_Wheel(duty: int)
+        +right_Wheel(duty: int)
+        +setMotorModel(duty1: int, duty2: int)
+        +close()
+    }
+    
+    class Servo{
+        +name = "servo"
+        +servo1: AngularServo
+        +servo2: AngularServo
+        +servo3: AngularServo
+        +setServoPwm(channel: str, angle: int)
+        +setServoAngle(channel: str, angle: int)
+        +setServoStop()
+        +close()
+    }
+    
+    class LED_Board{
+        +name = "led"
+        +set_color(r: int, g: int, b: int)
+        +set_brightness(level: int)
+        +close()
+    }
+    
+    class Arm{
+        +servo1_angle: int
+        +servo2_angle: int
+        +move_to(position: str)
+        +grip()
+        +release()
+    }
+    
+    class Motor_System{
+        +left_motor: Motor
+        +right_motor: Motor
+        +move_forward(speed: int)
+        +move_backward(speed: int)
+        +turn_left(speed: int)
+        +turn_right(speed: int)
+        +stop()
+    }
+    
+    class Tank{
+        +motor_system: Motor_System
+        +arm: Arm
+        +camera: Camera
+        +infrared: Infrared
+        +ultrasonic: Ultrasonic
+        +led: LED_Board
+        +clamp_mode: int
+        +infrared_run_stop: bool
+        +start()
+        +close()
+        +mode_ultrasonic()
+        +mode_infrared()
+        +mode_clamp(mode: int)
+        +set_mode_clamp(mode: int)
+        +get_mode_clamp() int
+        +mode_clamp_up()
+        +mode_clamp_down()
+        +mode_clamp_stop()
+    }
+
+    Component <|-- Input 
+    Component <|-- Output 
+    Input <|-- Ultrasonic
+    Input <|-- Infrared
+    Input <|-- Camera
+    Output <|-- Motor
+    Output <|-- Servo
+    Output <|-- LED_Board
+
+    Servo "2"*--"1" Arm
+    Motor "2"*--"1" Motor_System
+
+    Motor_System "1"*--"1" Tank
+    Arm "1"*--"1" Tank
+    Camera "1"*--"1" Tank
+    Infrared "1"*--"1" Tank
+    Ultrasonic "1"*--"1" Tank
+    LED_Board "1"*--"1" Tank
