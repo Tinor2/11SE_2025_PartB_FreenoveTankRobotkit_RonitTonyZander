@@ -2,6 +2,7 @@ import os
 import pygame
 import time
 import threading
+from Command import COMMAND as cmd
 from PyQt5.QtCore import QObject, pyqtSignal, QEvent, QCoreApplication
 from PyQt5.QtGui import QKeyEvent
 from PyQt5.QtCore import Qt
@@ -12,12 +13,10 @@ class XboxController(QObject):
     
     # Button to key mapping
     BUTTON_MAPPING = {
-        0: (Qt.Key_O, "Pinch Object"),    # A
-        1: (Qt.Key_P, "Drop Object"),     # B
-        2: (Qt.Key_V, "Toggle Video"),    # X
-        3: (Qt.Key_Home, "Reset Camera"), # Y
-        6: (Qt.Key_U, "Ultrasonic"),      # Back
-        7: (Qt.Key_C, "Connect")          # Start
+        0: (Qt.Key_L, "Toggle LED Mode"),     # A - Toggle LED mode
+        1: (Qt.Key_V, "Toggle Camera View"),  # B - Toggle camera view
+        2: (Qt.Key_P, "Drop Object"),         # X - Drop object
+        # Y button (3), Back button (6), and Start button (7) are intentionally left unmapped
     }
     
     def __init__(self, main_window):
@@ -39,6 +38,22 @@ class XboxController(QObject):
     def stop(self):
         """Stop the controller input thread."""
         self.running = False
+    
+    def is_moving_forward(self):
+        """Check if moving forward."""
+        return self.movement_state["forward"]
+    
+    def is_moving_backward(self):
+        """Check if moving backward."""
+        return self.movement_state["backward"]
+    
+    def is_turning_left(self):
+        """Check if turning left."""
+        return self.movement_state["left"]
+    
+    def is_turning_right(self):
+        """Check if turning right."""
+        return self.movement_state["right"]
     
     def _update_movement(self, x, y):
         """Update movement based on stick position."""
